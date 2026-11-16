@@ -3,7 +3,7 @@
 // @namespace    https://github.com/shixiaogaoya
 // @version      4.0.0
 // @description  对 Google AI Studio 网站登录态工作台进行全面汉化与性能优化，已适配 Gemini 4 系列、Omni 视频、3.8 TTS/Live、Decision 1、Gemma 4、托管代理 (Antigravity/Deep Research)、Build 规划/Max 模式及新版控制台。
-// @author       zscc.in
+// @author       shixiaogaoya
 // @match        https://aistudio.google.com/*
 // @grant        none
 // @run-at       document-idle
