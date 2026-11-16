@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.0 - 2026-11-16
+
+- 全面适配 2026-11 登录态工作台新版模型与界面：Gemini 4 Hydrogen / Carbon / Argon、Gemini Omni 1.2 / 1.1 视频、Nano Banana 2.1 / 2 Lite、Gemini 3.8 Flash / TTS / Live、Gemini Decision 1、Robotics-ER 2、Lyria 3.5 及 Gemma 4。
+- 补齐托管代理（Antigravity Agent / Deep Research）环境来源挂载、网络白名单配置、单次会话 Token 上限弹窗、命令面板（`Ctrl + /`）、Build `Default / Plan / Max` 构建模式及 `Interactions API` 弹窗文案。
+- 新增通用定价行解析函数 `translatePricingLine`（支持限时优惠截止日期、星号分隔、大小写兼容及单边价格）与半本地化发布日期（如 `11月 13, 2026`）转换。
+- 重构核心汉化引擎：改用 `WeakMap` 值比对修复 `characterData` 动态文本更新漏翻；保护 `.material-symbols-outlined` / `.google-symbols` 图标连字、`textarea` 输入内容及 `ms-chat-turn ms-cmark-node` 模型回复正文；移除首屏 1000ms 延迟并支持 SPA 路由与页面标题同步汉化。
+
 ## 3.7.6 - 2026-05-06
 
 - 补齐左下角"新功能"悬浮弹窗中 3 个新增条目标题与描述：Antigravity Agent Preview、Gemini 3.5 Flash、Gemini 3.1 Flash Lite GA。

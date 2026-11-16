@@ -1,24 +1,25 @@
 // ==UserScript==
-// @name         Google AI Studio 汉化脚本(船仓完美版)
-// @namespace    https://github.com/izscc
-// @version      3.7.6
-// @description  对 Google AI Studio 网站界面进行完美汉化，方便中国用户使用。已补齐 FAQ、付费 API key 关联弹层、模型选择器、历史对话操作区及更多新版 UI 的漏翻内容。
+// @name         Google AI Studio 汉化脚本
+// @namespace    https://github.com/shixiaogaoya
+// @version      4.0.0
+// @description  对 Google AI Studio 网站登录态工作台进行全面汉化与性能优化，已适配 Gemini 4 系列、Omni 视频、3.8 TTS/Live、Decision 1、Gemma 4、托管代理 (Antigravity/Deep Research)、Build 规划/Max 模式及新版控制台。
 // @author       zscc.in
 // @match        https://aistudio.google.com/*
 // @grant        none
 // @run-at       document-idle
 // @license      MIT
-// @homepageURL  https://github.com/izscc/AIstudio-zh
-// @supportURL   https://github.com/izscc/AIstudio-zh/issues
-// @downloadURL https://update.greasyfork.org/scripts/556804/Google%20AI%20Studio%20%E6%B1%89%E5%8C%96%E8%84%9A%E6%9C%AC%28%E8%88%B9%E4%BB%93%E5%AE%8C%E7%BE%8E%E7%89%88%29.user.js
-// @updateURL https://update.greasyfork.org/scripts/556804/Google%20AI%20Studio%20%E6%B1%89%E5%8C%96%E8%84%9A%E6%9C%AC%28%E8%88%B9%E4%BB%93%E5%AE%8C%E7%BE%8E%E7%89%88%29.meta.js
+// @homepageURL  https://github.com/shixiaogaoya/AIstudio-zh
+// @supportURL   https://github.com/shixiaogaoya/AIstudio-zh/issues
+// @downloadURL  https://raw.githubusercontent.com/shixiaogaoya/AIstudio-zh/main/google-ai-studio-zh.user.js
+// @updateURL    https://raw.githubusercontent.com/shixiaogaoya/AIstudio-zh/main/google-ai-studio-zh.user.js
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    // 防止重复处理的缓存
-    const processedNodes = new WeakSet();
+    // 记录已处理文本节点与元素属性的最近值，避免重复处理并支持动态内容更新
+    const lastHandledText = new WeakMap();
+    const lastHandledAttrs = new WeakMap();
 
     // 翻译结果缓存 (优化性能)
     const translationCache = new Map();
@@ -1863,7 +1864,54 @@
             .replace(
                 /(Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December)\s+(\d{1,2}),\s*(\d{4})/gi,
                 (_, month, day, year) => `${year}年${monthNameToNumber(month)}月${parseInt(day, 10)}日`
+            )
+            .replace(
+                /(\d{1,2})\s*月\s*(\d{1,2}),\s*(\d{4})/g,
+                (_, m, d, y) => `${y}年${parseInt(m, 10)}月${parseInt(d, 10)}日`
             );
+    }
+
+    function translatePricingLine(text) {
+        const match = text.match(/^(.+?)\s*[•*]\s*((?:input|output):\s*\$[0-9.]+(?:\/req)?(?:\s*\/\s*output:\s*\$[0-9.]+(?:\/req)?)?)(?:\s+through\s+(.+))?$/i);
+        if (!match) return null;
+
+        const rawPrefix = match[1].trim();
+        const prefixLower = rawPrefix.toLowerCase();
+        const prefixMap = {
+            'all context lengths': '所有上下文长度',
+            'text in / audio out': '文本输入 / 音频输出',
+            'text, image, video': '文本、图像和视频',
+            'text, image and video': '文本、图像和视频',
+            'image (*output per image)': '图像 (*每张图像输出)',
+            'video (*output per video)': '视频 (*每个视频输出)',
+            'song generation (*output per song)': '歌曲生成 (*每首歌输出)',
+            'audio/video': '音频/视频',
+            'image/video': '图像/视频',
+            'text': '文本',
+            'image': '图像',
+            'video': '视频',
+            'audio': '音频'
+        };
+
+        let translatedPrefix = prefixMap[prefixLower];
+        if (!translatedPrefix) {
+            let m;
+            if ((m = rawPrefix.match(/^<=\s*(\d+)K tokens$/i))) {
+                translatedPrefix = `<=${m[1]}K 令牌`;
+            } else if ((m = rawPrefix.match(/^>\s*(\d+)K tokens$/i))) {
+                translatedPrefix = `> ${m[1]}K 令牌`;
+            } else if ((m = rawPrefix.match(/^Video \(\*Output per video (720p|1080p|4K)\)$/i))) {
+                translatedPrefix = `视频 (*每个 ${m[1]} 视频输出)`;
+            } else {
+                return null;
+            }
+        }
+
+        const translatedPrice = match[2]
+            .replace(/\binput:/ig, '输入:')
+            .replace(/\boutput:/ig, '输出:');
+        const throughDate = match[3] ? `（优惠截止至 ${translateEnglishDateFragments(match[3].trim())}）` : '';
+        return `${translatedPrefix} • ${translatedPrice}${throughDate}`;
     }
 
     // 正则表达式替换规则 (处理动态内容)
@@ -1975,7 +2023,7 @@
         "Open voice settings": "打开语音设置",
         "voice settings": "语音设置",
         "Text": "文本",
-        "Composer": "组合器",
+        "Composer": "作曲器",
         "e.g. A bustling street at night...": "例如：夜晚熙攘的街道...",
         "e.g. Previous speaker just finished a long story...": "例如：上一位发言者刚讲完一个很长的故事...",
         "[amused] That's a great idea! [laughs] (Type '[' for tags)": "[愉快] 这是个很棒的想法！[笑声]（输入 '[' 可添加标签）",
@@ -2009,6 +2057,302 @@
         "Google Forms": "Google Forms",
         "Google Keep": "Google Keep",
         "Google Meet": "Google Meet"
+    });
+
+    // --- v4.0.0 适配 2026-11 登录态新版全站 UI / Gemini 4 / Omni / Agent ---
+    Object.assign(translations, {
+        // 1. 全局侧边栏、顶栏、页面标题与命令面板 (Ctrl + /)
+        "Explore": "探索",
+        "My apps": "我的应用",
+        "Manage": "管理",
+        "Collapse navigation menu": "折叠导航菜单",
+        "Expand navigation menu": "展开导航菜单",
+        "Search (Ctrl /)": "搜索 (Ctrl /)",
+        "Search (⌘ /)": "搜索 (⌘ /)",
+        "Search (Cmd /)": "搜索 (Cmd /)",
+        "Command Palette": "命令面板",
+        "Type a command or search...": "输入命令或搜索...",
+        "Start a chat or vibe code an app": "开始对话或用氛围编程构建应用",
+        "Go to Build": "前往构建",
+        "Go to Chat": "前往对话",
+        "Manage API keys": "管理 API 密钥",
+        "Keyboard shortcuts": "键盘快捷键",
+        "Start building a new app": "开始构建新应用",
+        "Open a new chat prompt": "打开新的对话提示词",
+        "Create or view API keys": "创建或查看 API 密钥",
+        "Recent": "最近",
+        "Navigation": "导航",
+        "Help": "帮助",
+        "/build · Vibe code an app": "/build · 用氛围编程构建应用",
+        "/chat · Start a chat with a model": "/chat · 开始与模型对话",
+        "/key · Create an API key": "/key · 创建 API 密钥",
+        "/shortcuts · View keyboard shortcuts": "/shortcuts · 查看快捷键",
+        "/build. Vibe code an app. Opens sub-menu": "/build · 用氛围编程构建应用（打开子菜单）",
+        "/chat. Start a chat with a model. Opens sub-menu": "/chat · 开始与模型对话（打开子菜单）",
+        "/key. Create an API key. Opens sub-menu": "/key · 创建 API 密钥（打开子菜单）",
+        "/shortcuts. View keyboard shortcuts. Opens sub-menu": "/shortcuts · 查看快捷键（打开子菜单）",
+
+        // 2. Playground 顶栏、空状态、工具栏与运行设置面板
+        "Introducing Gemini 4 Hydrogen": "重磅推出 Gemini 4 Hydrogen",
+        "Gemini 4 Hydrogen is here": "Gemini 4 Hydrogen 现已推出",
+        "Try in Build": "在构建模式中试用",
+        "Now using Gemini 4 Hydrogen": "当前正在使用 Gemini 4 Hydrogen",
+        "Build with Gemini 4 Hydrogen": "使用 Gemini 4 Hydrogen 构建",
+        "Build with Gemini 4 Carbon": "使用 Gemini 4 Carbon 构建",
+        "Build with Gemini 4 Argon": "使用 Gemini 4 Argon 构建",
+        "Build with Gemini Managed Agents API": "使用 Gemini 托管代理 API 构建",
+        "Cutting-edge intelligence, with speed and efficiency for everyday coding and agentic workflows.": "前沿智能，兼具速度与效率，专为日常编码和智能体工作流打造。",
+        "Prompts to try": "推荐尝试的提示词",
+        "Review my code before I ship it": "在上线前审查我的代码",
+        "Find the errors in my hospital bill": "找出我医院账单中的错误",
+        "Should my next car be an EV or a hybrid": "我的下一辆车应该买纯电还是混动",
+        "Spot the red flags in my apartment lease": "识别我租房合同中的风险条款",
+        "This model is not stable and may not be suitable for production use.": "此模型尚不稳定，可能不适合用于生产环境。",
+        "Switch model?": "切换模型？",
+        "Switching to this model will start a new chat. Content in current chat will be lost. Do you want to continue?": "切换到此模型将开启新对话，当前对话中的内容将会丢失。确定要继续吗？",
+        "Import from GitHub": "从 GitHub 导入",
+        "Import from Google Drive": "从 Google 云端硬盘导入",
+        "Insert images, videos, or files": "插入图片、视频或文件",
+        "Insert images or files": "插入图片或文件",
+        "Select API key": "选择 API 密钥",
+        "API key information": "API 密钥信息",
+        "Remove Grounding with Google Search": "移除 Google 实时搜索",
+        "Remove URL context": "移除 URL 上下文",
+        "Remove Code execution": "移除代码执行",
+        "Remove Structured outputs": "移除结构化输出",
+        "Remove Function calling": "移除函数调用",
+        "Run Ctrl": "运行 Ctrl",
+        "Run Cmd": "运行 Cmd",
+        "Extra High": "极高",
+        "Not supported for this model": "此模型不支持",
+        "System instructions Not supported for this model": "系统指令（此模型不支持）",
+        "Grounding with Google Search · Source: Google Search": "Google 实时搜索 · 来源：Google 搜索",
+        "Source: Google Search": "来源：Google 搜索",
+        "Up to 1,048,576. Responses beyond 65,536 tokens continue automatically in multiple parts, so they take longer.": "最高支持 1,048,576。超过 65,536 Token 的回复会自动分段继续生成，因此耗时更长。",
+
+        // 3. 结构化输出、函数调用与安全设置弹窗
+        "OpenAPI schema object": "OpenAPI Schema 对象",
+        "API documentation": "API 文档",
+        "Enter an OpenAPI schema object to constrain the model output. See the API documentation for examples.": "输入 OpenAPI Schema 对象以约束模型输出。请参阅 API 文档以获取示例。",
+        "Enter a JSON schema": "输入 JSON Schema",
+        "Schema name": "Schema 名称",
+        "Optional": "可选",
+        "Required": "必填",
+        "Add parameter": "添加参数",
+        "Add parameters": "添加参数",
+        "Function name": "函数名称",
+        "Function description": "函数描述",
+        "Delete function declaration": "删除函数声明",
+        "Reset the schema": "重置 Schema",
+        "Save the current schema": "保存当前 Schema",
+        "Reset the function declarations": "重置函数声明",
+        "Save the current function declarations": "保存当前函数声明",
+        "\"name\" must be specified": "必须指定 \"name\"",
+        "Close Run Safety Settings": "关闭运行安全设置",
+        "Restore Default Settings": "恢复默认设置",
+        "Adjust how likely you are to see responses that could be harmful. Content is blocked based on the probability that it is harmful. This only applies to text outputs. You are responsible for ensuring that safety settings for your intended use case comply with the": "调整看到可能有害回复的概率。系统会根据内容有害的可能性进行屏蔽（仅适用于文本输出）。您有责任确保预期用途的安全设置符合",
+        "Adjust how likely you are to see responses that may be harmful. Content is blocked based on the probability that it is harmful.": "调整看到可能有害回复的概率。系统会根据内容有害的可能性进行屏蔽。",
+        "This only applies to text outputs.": "这仅适用于文本输出。",
+        "Terms": "服务条款",
+        "Use Policy": "使用政策",
+        "Terms and Use Policy": "服务条款与使用政策",
+        "Hate speech": "仇恨言论",
+        "Sexually explicit": "露骨色情",
+        "Dangerous content": "危险内容",
+        "Civic Integrity": "公民诚信",
+        "Civic integrity": "公民诚信",
+
+        // 4. 模型目录：Gemini 4 / 3.8 / 3.6 / 3.5 / Decision / Robotics / Gemma 4
+        "Open models": "开放模型",
+        "Open-weight models": "开放权重模型",
+        "Open weights": "开放权重",
+        "Managed Agents": "托管代理",
+        "Managed agents": "托管代理",
+        "Gemini Pro Latest": "Gemini Pro 最新版",
+        "An efficient model with cutting-edge intelligence for fast, dependable execution across coding, agentic workflows, and multimodal knowledge work.": "兼具前沿智能的高效模型，可在编码、智能体工作流和多模态知识工作中实现快速、可靠的执行。",
+        "Our most intelligent frontier model built for sustained long-horizon agentic tasks across coding, knowledge work, and science.": "我们最智能的前沿模型，专为编码、知识工作和科学领域的长程持续智能体任务打造。",
+        "A highly capable model, built to solve complex problems with depth and precision across real-world software engineering and knowledge work.": "能力强大的模型，专为在真实软件工程和知识工作中深入、精准地解决复杂问题而打造。",
+        "Our most intelligent Flash model, engineered for long-horizon software engineering, autonomous agents, and complex enterprise workflows.": "我们最智能的 Flash 模型，专为长程软件工程、自主智能体和复杂企业工作流设计。",
+        "Our previous generation Flash model, balancing speed and multimodal capabilities across general agentic and everyday tasks.": "我们上一代 Flash 模型，在通用智能体和日常任务中兼顾速度与多模态能力。",
+        "Our fastest, most cost-effective 3.5 model for high-throughput execution.": "我们速度最快、性价比最高的 3.5 模型，适用于高吞吐量执行。",
+        "Our previous-generation Pro model for complex reasoning, multimodal understanding, and general coding tasks.": "我们上一代 Pro 模型，适用于复杂推理、多模态理解和通用编码任务。",
+        "Our legacy Flash model, providing baseline speed and intelligence.": "我们的旧版 Flash 模型，提供基础的速度与智能。",
+        "Our new decision model, built for fast, calibrated yes/no, choice, and rubric decisions across text, images, audio, video, and PDFs.": "我们全新的决策模型，专为跨文本、图像、音频、视频和 PDF 的快速校准是非判断、多项选择与评分量表决策而打造。",
+        "Gemini Robotics-ER 2 Preview": "Gemini Robotics-ER 2 预览版",
+        "Embodied reasoning model delivering advanced video understanding, spatial reasoning, multi-step tool orchestration, and multi-robot collaboration for robotics tasks.": "具身推理模型，为机器人任务提供先进的视频理解、空间推理、多步工具编排与多机器人协作能力。",
+        "Gemini Robotics-ER 2 Streaming Preview": "Gemini Robotics-ER 2 流式预览版",
+        "Embodied reasoning model optimized for real-time text streaming. Delivers advanced video understanding, spatial reasoning, multi-step tool orchestration, and multi-robot collaboration at faster speeds.": "针对实时文本流式传输优化的具身推理模型，以更快速度提供先进的视频理解、空间推理、多步工具编排与多机器人协作能力。",
+        "Embodied reasoning model optimized for real-time text streaming.": "针对实时文本流式传输优化的具身推理模型。",
+
+        // 5. 图像 (Nano Banana 2.1)、视频 (Gemini Omni)、语音/转录/实时/音乐 (3.8 TTS / 3.5 Transcribe / 3.8 Live / Lyria 3.5)
+        "Gemini 3.1 Flash Lite Image": "Gemini 3.1 Flash Lite 图像",
+        "High-quality image generation and editing model with enhanced factuality, visual fidelity, and multi-turn consistency at Flash scale.": "具备增强事实性、视觉保真度和多轮一致性的 Flash 级高质量图像生成与编辑模型。",
+        "Our smallest and most cost effective image generation and editing model, built for at scale usage.": "我们最小巧、最具性价比的图像生成与编辑模型，专为大规模调用打造。",
+        "Our latest native image generation and editing model with crisp typography, multi-image composition, and tactile realism.": "我们最新的原生图像生成与编辑模型，具备清晰的文字排版、多图合成与逼真质感。",
+        "Generate images with Nano Banana 2.1": "使用 Nano Banana 2.1 生成图像",
+        "Pin an editorial fashion collage on corkboard": "在软木板上钉一幅时尚杂志风拼贴画",
+        "Design a minimalist botanical bird wallpaper": "设计极简植物飞鸟壁纸",
+        "Draft an architectural plan & section blueprint": "绘制建筑平面与剖面蓝图",
+        "Glossy editorial magazine cover": "亮面时尚杂志封面",
+        "Disassembled brass rangefinder knolling": "拆解黄铜旁轴相机平铺陈列图",
+        "Swiss International Typographic poster": "瑞士国际主义排版风格海报",
+        "Output format": "输出格式",
+        "Generate videos with Gemini Omni 1.2 Flash": "使用 Gemini Omni 1.2 Flash 生成视频",
+        "Generate and edit up to 15 seconds of video with native audio from text, images and video, with stronger character and subject consistency.": "支持从文本、图像和视频生成及编辑最长 15 秒带原生音频的视频，具备更强的角色与主体一致性。",
+        "Production-ready generative video with keyframe control and scene extension. Bring text, image, and video references to life, seamlessly extend scenes up to 30 seconds, and upscale outputs up to 4K.": "生产级生成式视频模型，支持关键帧控制与场景延展。让文本、图像和视频参考鲜活呈现，无缝延展至最长 30 秒，并支持最高 4K 超清放大。",
+        "Lock a Snorricam on a charging knight": "使用身体绑定镜头跟拍冲锋的骑士",
+        "Crash-zoom out from a castaway to his island": "从流落荒岛者急推拉远展现整座孤岛",
+        "Tilt down and dolly in to a speaking archivist": "镜头下摇并推进至正在讲话的档案管理员",
+        "Ramen bar diorama, first to last frame": "拉面店微缩景观，首尾帧过渡",
+        "Four-character conservatory scene": "温室四角色互动场景",
+        "Hive science explainer with live callouts": "带动态标注的蜂巢科普解说",
+        "Video duration": "视频时长",
+        "Video duration in seconds": "视频时长（秒）",
+        "Video Resolution": "视频分辨率",
+        "Frame rate": "帧率",
+        "Video Frame Rate": "视频帧率",
+        "Video task": "视频任务",
+        "Video Task": "视频任务",
+        "Unspecified": "未指定",
+        "Flagship TTS model for Voice Design and dual-speaker screenplay control. Prompt custom vocal personas, direct line-by-line delivery, and add vocal bursts.": "面向音色设计与双人剧本控制的旗舰 TTS 模型。可通过提示词定制声音人设、逐行指导演绎方式并添加语气词。",
+        "High-speed and cost-efficient, ideal for rapid dubbing, media localization, and high-throughput voice agents. Direct replacement for gemini-3.1-flash-tts-preview.": "高速且高性价比，非常适合快速配音、媒体本地化和大规模语音代理。可直接替代 gemini-3.1-flash-tts-preview。",
+        "Turn text into natural-sounding speech": "将文本转换为自然流畅的语音",
+        "Explore Text to speech": "探索文字转语音",
+        "Explore thousands of voices": "探索海量音色",
+        "Create new dialog": "创建新对话脚本",
+        "Create new voice": "创建新音色",
+        "Voice Design": "音色设计",
+        "Speech rate": "语速",
+        "Pitch": "音调",
+        "Our specialized, high-accuracy speech-to-text model optimized for processing pre-recorded files and static payloads. Engineered to deliver deep, structured transcripts with rich archival metadata.": "专为处理预录音频文件与静态负载优化的高精度专用语音转文本模型，可输出带丰富归档元数据的深度结构化转录稿。",
+        "Our ultra-low latency, real-time streaming speech-to-text model. Engineered to transcribe live audio inputs on-the-fly with rapid-fire textual updates.": "超低延迟实时流式语音转文本模型，专为实时音频输入的即时转录与快速文本刷新打造。",
+        "Our low-latency, real-time dialogue model optimized for fluid, uninterrupted conversations with seamless, background async function calling.": "低延迟实时对话模型，针对流畅不间断的交谈进行了优化，支持无缝后台异步函数调用。",
+        "Gemini 3.8 Live Extended Thinking": "Gemini 3.8 Live 深度思考版",
+        "Our high-precision audio model engineered for complex tasks, capable of in-depth reasoning while speaking with natural verbal cues.": "专为复杂任务设计的高精度音频模型，能够在以自然口语提示交流的同时进行深度推理。",
+        "Gemini 3.5 Live Translate Preview": "Gemini 3.5 实时翻译预览版",
+        "A real-time speech-to-speech translation model delivering low latency translation for 70+ languages.": "实时语音到语音翻译模型，支持 70 多种语言的低延迟翻译。",
+        "Our advanced, full-song generative model with enhanced audio fidelity and vocal clarity, optimized for precise prompt adherence and rich, cohesive musical arrangements.": "我们先进的完整歌曲生成模型，具备更高的音频保真度与人声清晰度，针对精准提示词遵循与丰富连贯的编曲进行了优化。",
+        "Describe the music you want to generate with Lyria 3.5": "描述你想用 Lyria 3.5 生成的音乐",
+        "Compose full-length instrumental scores and vocal tracks with section-by-section arrangement control.": "支持逐段落编曲控制，创作完整长度的器乐配乐与人声曲目。",
+        "Compose a cinematic orchestral hybrid score": "创作一段电影感管弦混合配乐",
+        "Produce a 90s indie alt-rock anthem with vocals": "制作一首带人声的 90 年代独立另类摇滚赞歌",
+        "Build a peak-time big-room EDM festival drop": "打造一段音乐节压轴高潮风 Big Room EDM Drop",
+        "Make a wake-up track": "制作一首早安唤醒曲",
+        "Score a rhythm game": "为节奏音游配乐",
+
+        // 6. Agent 工作台 (Antigravity Agent / Deep Research / 环境、网络白名单与 Token 上限)
+        "Selected model": "当前所选模型",
+        "Select Antigravity agent harness model": "选择 Antigravity 代理底层模型",
+        "Pricing is based on the configured model.": "定价基于所配置的底层模型。",
+        "Antigravity Agent Preview is available via an API key. Link an API key to get started.": "Antigravity 代理预览版需通过 API 密钥使用。请先关联 API 密钥以开始使用。",
+        "Start typing a prompt to see what our agents can do": "输入提示词，体验我们的智能体能做什么",
+        "Set up token cap": "设置 Token 上限",
+        "Show agent disclaimer": "显示代理免责声明",
+        "Toggle disclaimer": "切换免责声明",
+        "Filesystem tools": "文件系统工具",
+        "Select primary model": "选择主模型",
+        "Environment mode": "环境模式",
+        "Add new source": "添加新来源",
+        "No source added yet": "暂未添加来源",
+        "Add source": "添加来源",
+        "Inline file": "内联文件",
+        "GCS bucket": "GCS 存储桶",
+        "Repository": "代码仓库",
+        "Network Configuration": "网络配置",
+        "Configure the network access rules for this agent session.": "配置此代理会话的网络访问规则。",
+        "Network requests within the VM are allowlist-controlled in AI Studio. Only listed domains below can be accessed by the VM.": "AI Studio 中虚拟机内的网络请求受白名单控制，虚拟机仅可访问下方列出的域名。",
+        "Be careful when adding new domains to the allowlist - it gives the agent access to those services. If you include credentials, the agent can authenticate and act on your behalf, and may perform unintended actions": "向白名单添加新域名时请务必谨慎——这将授予代理访问这些服务的权限。如果包含凭据，代理便能以您的身份进行认证并执行操作，可能会产生非预期行为",
+        "Network rules are strictly enforced during the agent's run.": "代理运行期间将严格执行网络规则。",
+        "Add to allowlist": "添加到白名单",
+        "Delete rule": "删除规则",
+        "Domain": "域名",
+        "Domain (e.g. github.com, *.googleapis.com)": "域名（例如 github.com、*.googleapis.com）",
+        "Host / Domain": "主机 / 域名",
+        "Port": "端口",
+        "Add HTTP header": "添加 HTTP 请求头",
+        "Header-name": "请求头名称",
+        "Header Name": "请求头名称",
+        "Header Value": "请求头值",
+        "Type here": "在此输入",
+        "See less": "收起",
+        "Set token limit for this session": "设置本次会话的 Token 上限",
+        "API usage pauses once your cap is reached. You can always come back to increase the token limit.": "达到上限后 API 使用将暂停。您可以随时返回调高 Token 上限。",
+        "Agents can consume significant tokens while executing iterative multi-step workflows. Set a maximum token cap to prevent unexpected quota exhaustion.": "代理在执行多步迭代工作流时可能消耗大量 Token。设置最大 Token 上限可防止意外耗尽配额。",
+        "Token limit per session": "单次会话 Token 上限",
+        "Token cap": "Token 上限",
+        "Set cap": "设置上限",
+        "Thinking summaries": "思考摘要",
+        "Visualization": "可视化图表",
+        "Collaborative planning": "协作规划",
+
+        // 7. Build 应用构建页 (/apps)、生成模式 (Default/Plan/Max) 与画廊卡片
+        "Bring ideas to life with AI apps": "用 AI 应用将创意变为现实",
+        "Transform your prompts into full-stack prototypes and interactive applications.": "将提示词转化为全栈原型与交互式应用。",
+        "Describe your app idea, paste a wireframe, or choose a starter template below...": "描述您的应用创意、粘贴线框图，或从下方选择起始模板...",
+        "Select mode": "选择模式",
+        "Generation mode": "生成模式",
+        "Default mode": "默认模式",
+        "Make changes right away": "立即执行修改",
+        "Default mode · Make changes right away": "默认模式 · 立即执行修改",
+        "Plan": "规划",
+        "Plan mode": "规划模式",
+        "Create a plan before making changes": "修改前先制定方案",
+        "Plan mode · Create a plan before making changes": "规划模式 · 修改前先制定方案",
+        "Max mode": "Max 模式",
+        "Work longer for better results": "深度思考以获得更佳效果",
+        "Max mode · Work longer for better results": "Max 模式 · 深度思考以获得更佳效果",
+        "Design Variations": "设计变体",
+        "Design variations": "设计变体",
+        "Create a game": "创建游戏",
+        "Three.js 3D scenes": "Three.js 3D 场景",
+        "Build an XR Blocks app": "构建 XR Blocks 应用",
+        "Add a SQL database": "添加 SQL 数据库",
+        "Google Maps": "Google 地图",
+        "Google Drive": "Google 云端硬盘",
+        "Google Sheets": "Google 表格",
+        "Google Docs": "Google 文档",
+        "Google Slides": "Google 幻灯片",
+        "Google Calendar": "Google 日历",
+        "Interactive Data Dashboard": "交互式数据仪表盘",
+        "E-commerce Landing Page": "电商着陆页",
+        "Event Landing Page": "活动着陆页",
+        "Workflow Automation Agent": "工作流自动化代理",
+        "App Template": "应用模板",
+        "Interactive": "交互式",
+        "Website": "网站",
+        "Interactive Website": "交互式网站",
+        "3D & WebGL": "3D 与 WebGL",
+        "Explore apps built with Gemini 4 Hydrogen": "探索使用 Gemini 4 Hydrogen 构建的应用",
+        "Pelican Campus Quest": "鹈鹕校园大冒险 (Pelican Campus Quest)",
+        "Mountain View Open-World 3D Bicycle Game: 16 TPU Hunt, Gym Breakout, Free Roam & Story Auto-Pilot, Lyria 3.5 WebAudio": "山景城开放世界 3D 单车游戏：16 颗 TPU 寻宝、体育馆突围、自由漫游与剧情自动巡航，配 Lyria 3.5 网页音频",
+        "Gemini Supply": "Gemini 周边商店 (Gemini Supply)",
+        "Interactive WebGL2 and kinetic scroll storefront for the Google Gemini merchandise collection.": "Google Gemini 周边系列的交互式 WebGL2 动态滚动精品店面。",
+        "Koerner Hall - 1780 Stein-Schule Fortepiano & Spatial Acoustics": "科纳音乐厅 - 1780 古钢琴与空间声学 (Koerner Hall)",
+        "Interactive 3D acoustic simulation of Toronto's Koerner Hall featuring a CAD-reconstructed c. 1780 Stein-Schule South German fortepiano, 5 synchronized solo Creative Commons period fortepiano recordings, and seat-dependent room acoustics across 1,135 seats.": "多伦多科纳音乐厅交互式 3D 声学仿真，内含 CAD 重建的约 1780 年南德古钢琴、5 首同步古钢琴独奏录音，以及覆盖 1,135 个座位的空间声场模拟。",
+        "Alpine Peak": "阿尔卑斯雪峰大亨 (Alpine Peak)",
+        "Procedural 2:1 isometric pixel-art ski resort and alpine town tycoon with 174+ craftable varieties across 5 elevations, Winter Festival & Ferris Wheel, Night Mode 2.0, Mountain Coaster, 10 lift types, waterfalls, and 247+ bustling skiers, balloons & paragliders.": "程序化 2:1 等轴像素风滑雪度假村与高山小镇经营游戏，横跨 5 个海拔梯度、174+ 可建造品类，支持冬季庆典摩天轮、夜景模式 2.0、高山过山车与 10 种缆车。",
+        "E-commerce demo landing page for a fictional water bottle brand with immersive photography": "带沉浸式摄影效果的虚拟水杯品牌电商演示着陆页",
+        "Fictional three-day conference website on pixels, type, interfaces and systems.": "围绕像素、字体排版、界面与系统设计的三日虚拟大会网站。",
+        "GeminIsland": "双子岛 (GeminIsland)",
+        "Courier Field": "信使原野 (Courier Field)",
+        "Sparrow Sim": "麻雀模拟器 (Sparrow Sim)",
+        "Clockwork Sanctum": "发条圣殿 (Clockwork Sanctum)",
+        "Eiffel Tower 3D": "3D 埃菲尔铁塔 (Eiffel Tower 3D)",
+
+        // 8. 历史记录、控制台与 Interactions API 弹窗
+        "My files": "我的文件",
+        "Shared": "共享内容",
+        "Loading your conversations.": "正在加载您的对话...",
+        "New! Gemini Interactions API": "新功能！Gemini Interactions API",
+        "All Interactions API requests are stored by default in order to enable stateful features. View a history of your Gemini Interactions API calls, which includes multi-turn conversations, agent, and stateful interactions. All logged data remains private to your project.": "所有 Interactions API 请求默认都会存储以启用有状态功能。您可以在此查看 Gemini Interactions API 调用历史（包括多轮对话、代理与有状态交互）。所有日志数据仅对您的项目私密可见。",
+        "New! Gemini Interactions API All Interactions API requests are stored by default in order to enable stateful features. View a history of your Gemini Interactions API calls, which includes multi-turn conversations, agent, and stateful interactions. All logged data remains private to your project.": "新功能！Gemini Interactions API：所有 Interactions API 请求默认都会存储以启用有状态功能。您可以在此查看 Gemini Interactions API 调用历史（包括多轮对话、代理与有状态交互）。所有日志数据仅对您的项目私密可见。",
+        "Change settings": "更改设置",
+        "Documentation for logging and datasets": "日志与数据集文档",
+        "Docs": "文档",
+        "Disabled": "已停用",
+        "Enabled": "已启用",
+        "Filter by dataset": "按数据集筛选",
+        "Cloud Console": "Cloud 控制台"
     });
 
 
@@ -2119,7 +2463,76 @@
         { regex: /^Video \(\*Output per video (720p|1080p)\) • Output: (\$[0-9.]+)$/i, replacement: "视频 (*每个 $1 视频输出) • 输出: $2" },
         { regex: /^Song generation \(\*Output per song\) • Output: (\$[0-9.]+\/req)$/i, replacement: "歌曲生成 (*每首歌输出) • 输出: $1" },
         { regex: /^Image\/video • Input: (\$[0-9.]+)$/i, replacement: "图像/视频 • 输入: $1" },
-        { regex: /^Selected (.+)$/i, replacement: "已选择 $1" }
+        {
+            regex: /^(Harassment|Hate(?: speech)?|Sexually [Ee]xplicit|Dangerous [Cc]ontent|Civic [Ii]ntegrity)\s*·\s*(Off|Block none|Block few|Block some|Block most)$/,
+            replacement: (_, category, threshold) => {
+                const catMap = {
+                    'harassment': '骚扰',
+                    'hate': '仇恨言论',
+                    'hate speech': '仇恨言论',
+                    'sexually explicit': '露骨色情',
+                    'dangerous content': '危险内容',
+                    'civic integrity': '公民诚信'
+                };
+                const thrMap = {
+                    'off': '关闭',
+                    'block none': '不屏蔽',
+                    'block few': '屏蔽少量',
+                    'block some': '屏蔽部分',
+                    'block most': '屏蔽大多数'
+                };
+                return `${catMap[category.toLowerCase()] || category} · ${thrMap[threshold.toLowerCase()] || threshold}`;
+            }
+        },
+        {
+            regex: /^Be careful when adding new domains to the allowlist[\s\S]*?may perform unintended actions\s*·\s*(\d+)\s*rules?$/i,
+            replacement: "向白名单添加新域名时请务必谨慎——这将授予代理访问这些服务的权限。如果包含凭据，代理便能以您的身份进行认证并执行操作，可能会产生非预期行为 · $1 条规则"
+        },
+        {
+            regex: /^(.*?)\s*·\s*(?:(New|Paid|Preview|Experimental)\s*·\s*)?([a-z]+-[a-z0-9.-]+)$/,
+            replacement: (_, modelName, badge, modelId) => {
+                const nameTrim = modelName.trim();
+                const translatedName = translations[nameTrim] || nameTrim;
+                const badgeMap = { New: '新', Paid: '付费', Preview: '预览', Experimental: '实验性' };
+                return badge
+                    ? `${translatedName} · ${badgeMap[badge] || badge} · ${modelId}`
+                    : `${translatedName} · ${modelId}`;
+            }
+        },
+        { regex: /^Select key "(.+)" as part of project "(.+)"$/i, replacement: "为项目“$2”选择密钥“$1”" },
+        { regex: /^Run\s+(Ctrl|Cmd|⌘)(.*)$/, replacement: "运行 $1$2" },
+        { regex: /^Now using (.+)$/, replacement: (_, modelName) => `当前正在使用 ${translations[modelName.trim()] || modelName.trim()}` },
+        { regex: /^Press Tab to use an example:\s*(.+)$/, replacement: "按 Tab 使用示例：$1" },
+        { regex: /^Up to ([\d,]+)\.\s*Responses beyond ([\d,]+) tokens continue automatically in multiple parts, so they take longer\.?$/i, replacement: "最高支持 $1。超过 $2 Token 的回复会自动分段继续生成，因此耗时更长。" },
+        { regex: /^Recent activity\.\s*(.+?)\.\s*Chat session$/, replacement: "最近活动 · $1 · 聊天会话" },
+        { regex: /^Recent activity\.\s*(.+?)\.\s*Vibe coding session$/, replacement: "最近活动 · $1 · 氛围编程会话" },
+        { regex: /^(.+?)\s*·\s*Chat session$/, replacement: "$1 · 聊天会话" },
+        { regex: /^(.+?)\s*·\s*Vibe coding session$/, replacement: "$1 · 氛围编程会话" },
+        {
+            regex: /^([A-Za-z &]+)\s*\|\s*Google AI Studio$/,
+            replacement: (full, pageName) => {
+                const titleMap = {
+                    'Build': '构建',
+                    'Projects': '项目',
+                    'Usage': '用量',
+                    'Spend': '支出',
+                    'Billing': '结算',
+                    'Logs and Datasets': '日志与数据集',
+                    'Music': '音乐',
+                    'History': '历史记录',
+                    'Playground': 'AI 实验室',
+                    'Rate Limit': '速率限制',
+                    'Rate Limits': '速率限制',
+                    'API Keys': 'API 密钥',
+                    'Case studies': '客户案例',
+                    'Documentation': '文档'
+                };
+                const key = pageName.trim();
+                return titleMap[key] ? `${titleMap[key]} | Google AI Studio` : full;
+            }
+        },
+        { regex: /^Selected (.+)$/i, replacement: (_, m) => `已选择 ${translations[m.trim()] || m.trim()}` },
+        { regex: /^Build with (.+)$/, replacement: (_, m) => `使用 ${translations[m.trim()] || m.trim()} 构建` }
     ];
 
     function applySpecialElementTranslations(node) {
@@ -2154,8 +2567,9 @@
                 const replacements = ['用 ', 'Gemini ', '将创意 ', '变成 ', 'APP'];
                 words.forEach((word, index) => {
                     word.textContent = replacements[index];
-                    processedNodes.add(word);
-                    if (word.firstChild) processedNodes.add(word.firstChild);
+                    if (word.firstChild && word.firstChild.nodeType === Node.TEXT_NODE) {
+                        lastHandledText.set(word.firstChild, word.firstChild.nodeValue);
+                    }
                 });
                 translationCache.set('Build your ideas with Gemini', '用 Gemini 将创意变成 APP');
                 translationCache.set('构建APP your ideas with Gemini', '用 Gemini 将创意变成 APP');
@@ -2163,108 +2577,126 @@
         }
     }
 
+    const SKIP_ELEMENT_SELECTOR = 'script, style, noscript, svg, pre, code, mat-icon, .material-symbols-outlined, .material-symbols-rounded, .google-symbols, .material-icons, .monaco-editor, .cm-editor, .code-block, .hljs, .prism, .xterm, [contenteditable="true"]';
+    const SKIP_TEXT_ANCESTOR_SELECTOR = `${SKIP_ELEMENT_SELECTOR}, textarea, ms-chat-turn ms-cmark-node`;
+    const TRANSLATABLE_ATTRS = ['aria-label', 'aria-description', 'placeholder', 'mattooltip', 'title', 'data-tooltip', 'data-after-input', 'dialoglabel'];
+
     /**
-     * 判断节点是否应该被跳过 (代码块保护)
+     * 判断元素节点是否应该被跳过 (代码块与图标保护)
      */
-    function shouldSkipNode(node) {
-        const tagName = node.tagName;
-        if (tagName === 'SCRIPT' || tagName === 'STYLE' || tagName === 'PRE' || tagName === 'CODE') {
-            return true;
+    function shouldSkipElement(node) {
+        return !!(node && node.nodeType === Node.ELEMENT_NODE && node.closest && node.closest(SKIP_ELEMENT_SELECTOR));
+    }
+
+    /**
+     * 判断文本节点是否位于受保护区域 (代码、图标、输入框及模型对话正文)
+     */
+    function shouldSkipTextNode(textNode) {
+        const parent = textNode && textNode.parentElement;
+        return !!(parent && parent.closest && parent.closest(SKIP_TEXT_ANCESTOR_SELECTOR));
+    }
+
+    /**
+     * 统一翻译查询（空白符与弯引号归一化）
+     */
+    function lookupTranslation(rawStr) {
+        if (!rawStr) return null;
+        const normalized = rawStr.replace(/\s+/g, ' ').trim();
+        if (!normalized) return null;
+
+        if (translationCache.has(normalized)) {
+            return translationCache.get(normalized);
         }
-        if (node.classList && (
-            node.classList.contains('monaco-editor') ||
-            node.classList.contains('code-block') ||
-            node.classList.contains('hljs') ||
-            node.classList.contains('cm-editor') ||
-            node.classList.contains('prism')
-        )) {
-            return true;
+
+        let translated = translations[normalized];
+        if (!translated && normalized.includes('’')) {
+            translated = translations[normalized.replace(/’/g, "'")];
         }
-        let parent = node.parentElement;
-        let depth = 0;
-        while (parent && depth < 5) {
-            const pTag = parent.tagName;
-            if (pTag === 'PRE' || pTag === 'CODE' || (parent.classList && (
-                parent.classList.contains('monaco-editor') ||
-                parent.classList.contains('code-block')
-            ))) {
-                return true;
+
+        if (!translated && normalized.startsWith('Google AI Studio uses cookies')) {
+            translated = 'Google AI Studio 使用 Google 的 Cookie 来提供和增强其服务质量，并分析流量。';
+        }
+
+        if (!translated) {
+            translated = translatePricingLine(normalized);
+        }
+
+        if (!translated) {
+            for (const rule of regexReplacements) {
+                if (rule.regex.test(normalized)) {
+                    const candidate = normalized.replace(rule.regex, rule.replacement);
+                    if (candidate && candidate !== normalized) {
+                        translated = candidate;
+                        break;
+                    }
+                }
             }
-            parent = parent.parentElement;
-            depth++;
         }
-        return false;
+
+        if (translated && translated !== normalized) {
+            translationCache.set(normalized, translated);
+            return translated;
+        }
+        return null;
     }
 
     /**
      * 翻译单个节点
      */
     function translateNode(node) {
-        if (processedNodes.has(node)) return;
-        processedNodes.add(node);
+        if (!node) return;
 
         if (node.nodeType === Node.ELEMENT_NODE) {
-            if (shouldSkipNode(node)) return;
+            if (shouldSkipElement(node)) return;
             applySpecialElementTranslations(node);
-            const attributes = ['aria-label', 'aria-description', 'placeholder', 'mattooltip', 'title', 'data-tooltip', 'data-after-input', 'dialoglabel'];
-            for (const attr of attributes) {
+
+            let attrCache = lastHandledAttrs.get(node);
+            for (const attr of TRANSLATABLE_ATTRS) {
                 const value = node.getAttribute(attr);
-                if (value) {
-                    const trimmedValue = value.trim();
-                    if (translationCache.has(trimmedValue)) {
-                        node.setAttribute(attr, translationCache.get(trimmedValue));
-                    } else if (translations[trimmedValue]) {
-                        const translated = translations[trimmedValue];
-                        node.setAttribute(attr, translated);
-                        translationCache.set(trimmedValue, translated);
-                    } else {
-                        for (const rule of regexReplacements) {
-                            if (rule.regex.test(trimmedValue)) {
-                                const translated = trimmedValue.replace(rule.regex, rule.replacement);
-                                node.setAttribute(attr, translated);
-                                translationCache.set(trimmedValue, translated);
-                                break;
-                            }
-                        }
-                    }
+                if (!value) continue;
+                if (attrCache && attrCache.get(attr) === value) continue;
+
+                const translated = lookupTranslation(value);
+                if (!attrCache) {
+                    attrCache = new Map();
+                    lastHandledAttrs.set(node, attrCache);
+                }
+                if (translated && translated !== value) {
+                    node.setAttribute(attr, translated);
+                    attrCache.set(attr, translated);
+                } else {
+                    attrCache.set(attr, value);
                 }
             }
+            return;
         }
 
         if (node.nodeType === Node.TEXT_NODE) {
-            if (shouldSkipNode(node.parentElement)) return;
+            if (shouldSkipTextNode(node)) return;
 
             const originalText = node.nodeValue;
-            const text = originalText.trim();
+            if (!originalText) return;
+            if (lastHandledText.get(node) === originalText) return;
 
-            if (!text) return;
-
-            if (translationCache.has(text)) {
-                node.nodeValue = originalText.replace(text, translationCache.get(text));
+            const leadingWsMatch = originalText.match(/^\s*/);
+            const trailingWsMatch = originalText.match(/\s*$/);
+            const leadingWs = leadingWsMatch ? leadingWsMatch[0] : '';
+            const trailingWs = trailingWsMatch ? trailingWsMatch[0] : '';
+            const coreText = originalText.trim();
+            if (!coreText) {
+                lastHandledText.set(node, originalText);
                 return;
             }
 
-            if (translations[text]) {
-                const translated = translations[text];
-                node.nodeValue = originalText.replace(text, translated);
-                translationCache.set(text, translated);
-                return;
-            }
-
-            if (text.startsWith("Google AI Studio uses cookies")) {
-                const translated = "Google AI Studio 使用 Google 的 Cookie 来提供和增强其服务质量，并分析流量。";
-                node.nodeValue = translated;
-                translationCache.set(text, translated);
-                return;
-            }
-
-            for (const rule of regexReplacements) {
-                if (rule.regex.test(text)) {
-                    const translated = text.replace(rule.regex, rule.replacement);
-                    node.nodeValue = originalText.replace(text, translated);
-                    translationCache.set(text, translated);
-                    return;
+            const translated = lookupTranslation(coreText);
+            if (translated) {
+                const nextValue = `${leadingWs}${translated}${trailingWs}`;
+                if (nextValue !== originalText) {
+                    node.nodeValue = nextValue;
                 }
+                lastHandledText.set(node, node.nodeValue);
+            } else {
+                lastHandledText.set(node, originalText);
             }
         }
     }
@@ -2274,8 +2706,7 @@
      */
     function walkAndTranslate(rootNode) {
         if (!rootNode) return;
-        if (rootNode.nodeType === Node.ELEMENT_NODE && shouldSkipNode(rootNode)) {
-            processedNodes.add(rootNode);
+        if (rootNode.nodeType === Node.ELEMENT_NODE && shouldSkipElement(rootNode)) {
             return;
         }
 
@@ -2284,11 +2715,10 @@
             NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
             {
                 acceptNode: function (node) {
-                    if (node.nodeType === Node.ELEMENT_NODE && shouldSkipNode(node)) {
-                        processedNodes.add(node);
+                    if (node.nodeType === Node.ELEMENT_NODE && shouldSkipElement(node)) {
                         return NodeFilter.FILTER_REJECT;
                     }
-                    if (processedNodes.has(node)) {
+                    if (node.nodeType === Node.TEXT_NODE && shouldSkipTextNode(node)) {
                         return NodeFilter.FILTER_SKIP;
                     }
                     return NodeFilter.FILTER_ACCEPT;
@@ -2299,8 +2729,16 @@
 
         translateNode(rootNode);
         let node;
-        while (node = walker.nextNode()) {
+        while ((node = walker.nextNode())) {
             translateNode(node);
+        }
+    }
+
+    function translateDocumentTitle() {
+        if (!document.title) return;
+        const translated = lookupTranslation(document.title);
+        if (translated && translated !== document.title) {
+            document.title = translated;
         }
     }
 
@@ -2309,7 +2747,7 @@
         subtree: true,
         characterData: true,
         attributes: true,
-        attributeFilter: ['aria-label', 'aria-description', 'placeholder', 'mattooltip', 'title', 'data-tooltip', 'data-after-input', 'dialoglabel']
+        attributeFilter: TRANSLATABLE_ATTRS
     };
 
     let mutationTimeout;
@@ -2321,31 +2759,94 @@
         mutationTimeout = setTimeout(() => {
             const batchMutations = pendingMutations;
             pendingMutations = [];
+
+            const addedRoots = new Set();
+            const attrTargets = new Set();
+            const charTargets = new Set();
+
             for (const mutation of batchMutations) {
                 if (mutation.type === 'childList') {
                     for (const node of mutation.addedNodes) {
-                        walkAndTranslate(node);
+                        if (node && node.isConnected !== false) {
+                            addedRoots.add(node);
+                        }
                     }
                 } else if (mutation.type === 'characterData') {
-                    translateNode(mutation.target);
+                    charTargets.add(mutation.target);
                 } else if (mutation.type === 'attributes') {
-                    const node = mutation.target;
-                    processedNodes.delete(node);
-                    translateNode(node);
+                    attrTargets.add(mutation.target);
                 }
             }
-        }, 50);
+
+            for (const node of addedRoots) {
+                let ancestor = node.parentNode;
+                let covered = false;
+                while (ancestor) {
+                    if (addedRoots.has(ancestor)) {
+                        covered = true;
+                        break;
+                    }
+                    ancestor = ancestor.parentNode;
+                }
+                if (!covered) {
+                    walkAndTranslate(node);
+                }
+            }
+
+            for (const target of charTargets) {
+                translateNode(target);
+            }
+            for (const target of attrTargets) {
+                translateNode(target);
+            }
+        }, 32);
     });
 
+    let initDone = false;
     function init() {
+        if (initDone || !document.body) return;
+        initDone = true;
+
+        translateDocumentTitle();
         walkAndTranslate(document.body);
         observer.observe(document.body, observerConfig);
+
+        const titleEl = document.querySelector('title');
+        if (titleEl) {
+            const titleObserver = new MutationObserver(() => translateDocumentTitle());
+            titleObserver.observe(titleEl, { childList: true, characterData: true, subtree: true });
+        }
+
+        const onRouteChange = () => {
+            setTimeout(() => {
+                translateDocumentTitle();
+                walkAndTranslate(document.body);
+            }, 50);
+        };
+
+        window.addEventListener('popstate', onRouteChange);
+        const rawPushState = history.pushState;
+        const rawReplaceState = history.replaceState;
+        if (typeof rawPushState === 'function') {
+            history.pushState = function () {
+                const res = rawPushState.apply(this, arguments);
+                onRouteChange();
+                return res;
+            };
+        }
+        if (typeof rawReplaceState === 'function') {
+            history.replaceState = function () {
+                const res = rawReplaceState.apply(this, arguments);
+                onRouteChange();
+                return res;
+            };
+        }
     }
 
-    if (document.readyState === 'loading') {
+    if (document.readyState === 'loading' || !document.body) {
         document.addEventListener('DOMContentLoaded', init);
     } else {
-        setTimeout(init, 1000);
+        init();
     }
 
 })();
