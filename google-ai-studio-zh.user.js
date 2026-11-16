@@ -10,8 +10,6 @@
 // @license      MIT
 // @homepageURL  https://github.com/shixiaogaoya/AIstudio-zh
 // @supportURL   https://github.com/shixiaogaoya/AIstudio-zh/issues
-// @downloadURL  https://raw.githubusercontent.com/shixiaogaoya/AIstudio-zh/main/google-ai-studio-zh.user.js
-// @updateURL    https://raw.githubusercontent.com/shixiaogaoya/AIstudio-zh/main/google-ai-studio-zh.user.js
 // ==/UserScript==
 
 (function () {

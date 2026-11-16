@@ -7,7 +7,7 @@
 - GitHub Raw 一键安装与自动更新：<https://raw.githubusercontent.com/shixiaogaoya/AIstudio-zh/main/google-ai-studio-zh.user.js>
 - 上游原版 Greasy Fork：<https://greasyfork.org/zh-CN/scripts/556804>
 
-推荐直接通过上方 GitHub Raw 链接安装，安装后可通过 `@updateURL` 从本仓库 `main` 分支自动更新（若此前已安装原版 `3.7.6`，直接打开该链接覆盖升级即可）。
+已配置 Greasy Fork Webhook 自动同步；无论从 Greasy Fork 还是上方 GitHub Raw 链接安装，脚本管理器都会自动识别来源并检查更新。
 
 ## 本次覆盖重点
 
@@ -19,7 +19,7 @@
 
 1. 修改 `google-ai-studio-zh.user.js` 并递增 `@version`。
 2. 同步更新 `CHANGELOG.md`。
-3. 推送到 `shixiaogaoya/AIstudio-zh` 的 `main` 分支，Tampermonkey / Violentmonkey 通过 GitHub Raw `@updateURL` 自动获取更新。
+3. 推送到 `shixiaogaoya/AIstudio-zh` 的 `main` 分支，GitHub Webhook 会自动触发 Greasy Fork 同步更新。
 
 ## 许可证
 
